@@ -71,6 +71,7 @@ encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
 with open("client_secrets.json", "w") as f:
     json.dump(google_credentials, f)
 
+print("all env variables"+str(os.environ))
 print("telegram token: "+str(CONFIG['telegram_token']))
 print("google token: "+str(google_credentials['installed']))
 # Create all necessary folders
@@ -299,13 +300,16 @@ class VideoOverlayGenerator:
         
         # Write final video
         print("\nCreating video...")
+        print("\nOutput path"+str(output_path))
         final_video.write_videofile(output_path, 
                                 codec='libx264',
                                 audio_codec='aac')
         
         # Close clips to free resources
+        print("\nStream about to close")
         video.close()
         final_video.close()
+        print("\nStream closed")
         
         return output_path
 
