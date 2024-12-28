@@ -12,3 +12,4 @@ googleapis-common-protos==1.66.0
 python-telegram-bot==21.9
 matplotlib==3.8.2
 schedule==1.2.2
+python-dotenv==1.0.1
