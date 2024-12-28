@@ -33,6 +33,8 @@ from dotenv import load_dotenv
 # ## Configuration
 
 # %%
+
+load_dotenv()
 CONFIG = {
     'telegram_token': os.getenv("TELEGRAM_TOKEN"),
     'chat_id': os.getenv("TELEGRAM_CHAT_ID"),
@@ -44,7 +46,7 @@ CONFIG = {
 
     'client_secrets_file': 'client_secrets.json',  # Update this path
     'video_file': 'data/output/overlay_Unbenannt.mp4',  # Update this path
-    'video_title': 'Meme of the day #shorts #memes, #funny',  # Update this
+    'video_title': 'Meme of the day #shorts #memes #funny',  # Update this
     'video_description': '',  # Update this
     'video_tags': ['#memes', '#funny'],  # Update these tags
     'privacy_status': 'public'
@@ -52,17 +54,21 @@ CONFIG = {
 
 # Read Google credentials from environment variables
 google_credentials = {
-    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
-    "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
-    "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
-    "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
-    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL"),
-    "redirect_uris":["http://localhost"]
+    "installed": {
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+        "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+        "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
+        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+        "redirect_uris": ["http://localhost"]
+    }
 }
 
+encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
+
 # Write credentials to a temporary file if needed
-with open("client-secrets.json", "w") as f:
+with open("client_secrets.json", "w") as f:
     json.dump(google_credentials, f)
 
 
@@ -75,8 +81,8 @@ def validate_config():
     issues = []
     if not os.path.exists(CONFIG['client_secrets_file']):
         issues.append(f"Client secrets file not found at: {CONFIG['client_secrets_file']}")
-    if not os.path.exists(CONFIG['video_file']):
-        issues.append(f"Video file not found at: {CONFIG['video_file']}")
+    if not os.path.exists(CONFIG['videos_folder']):
+        issues.append(f"Background Video files not found at: {CONFIG['videos_folder']}")
     
     if issues:
         print("⚠️ Configuration issues found:")
@@ -105,7 +111,7 @@ def authenticate_youtube():
     
     # Path to store credentials
     token_file = 'token.json'
-    
+
     credentials = None
     
     # Check if we have stored credentials
@@ -115,6 +121,13 @@ def authenticate_youtube():
                 token_file, scopes)
         except Exception as e:
             print(f"Error loading stored credentials: {e}")
+    elif encoded_token:
+        try:
+            token_data = json.loads(encoded_token)
+            credentials = google.oauth2.credentials.Credentials.from_authorized_user_file(
+                token_data, scopes)
+        except Exception as e:
+            print(f"Error loading credentials from environment variable: {e}")
     
     # If there are no valid credentials available, authenticate using the flow
     if not credentials or not credentials.valid:
@@ -513,7 +526,7 @@ def process_new_media():
 # %%
 def task():
     print("Running scheduled task!")
-    load_dotenv()
+    
     process_new_media()
 
 schedule.every(30).seconds.do(task)
