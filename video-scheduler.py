@@ -27,27 +27,44 @@ import google.auth.transport.requests
 from googleapiclient.http import MediaFileUpload
 import matplotlib.pyplot as plt
 import schedule
+from dotenv import load_dotenv
 
 # %% [markdown]
 # ## Configuration
 
 # %%
 CONFIG = {
-    'telegram_token': '7973758876:AAFLo7BeRD2K-y77l2BtRZGYkPX31HvVWuY',
-    'chat_id': '923488969',
+    'telegram_token': os.getenv("TELEGRAM_TOKEN"),
+    'chat_id': os.getenv("TELEGRAM_CHAT_ID"),
     'base_folder': 'data',
     'images_folder': 'data/input/images',
     'videos_folder': 'data/input/videos',
     'output_folder': 'data/output',
     'last_update_id': 0,
 
-    'client_secrets_file': 'client/client_secrets.json',  # Update this path
+    'client_secrets_file': 'client_secrets.json',  # Update this path
     'video_file': 'data/output/overlay_Unbenannt.mp4',  # Update this path
     'video_title': 'Meme of the day #shorts #memes, #funny',  # Update this
     'video_description': '',  # Update this
     'video_tags': ['#memes', '#funny'],  # Update these tags
     'privacy_status': 'public'
 }
+
+# Read Google credentials from environment variables
+google_credentials = {
+    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+    "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+    "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
+    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL"),
+    "redirect_uris":["http://localhost"]
+}
+
+# Write credentials to a temporary file if needed
+with open("client-secrets.json", "w") as f:
+    json.dump(google_credentials, f)
+
 
 # Create all necessary folders
 for folder in [ 'videos_folder', 'images_folder', 'output_folder']:
@@ -496,9 +513,10 @@ def process_new_media():
 # %%
 def task():
     print("Running scheduled task!")
+    load_dotenv()
     process_new_media()
 
-schedule.every(5).minutes.do(task)
+schedule.every(30).seconds.do(task)
 
 # %% [markdown]
 # ## Run the Bot
