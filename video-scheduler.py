@@ -28,6 +28,7 @@ from googleapiclient.http import MediaFileUpload
 import matplotlib.pyplot as plt
 import schedule
 from dotenv import load_dotenv
+import shutil
 
 # %% [markdown]
 # ## Configuration
@@ -41,7 +42,7 @@ CONFIG = {
     'base_folder': 'data',
     'images_folder': 'data/input/images',
     'videos_folder': 'data/input/videos',
-    'output_folder': 'data/output',
+    'output_folder': '/tmp',
     'last_update_id': 0,
 
     'client_secrets_file': 'client_secrets.json',  # Update this path
@@ -71,9 +72,11 @@ encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
 with open("client_secrets.json", "w") as f:
     json.dump(google_credentials, f)
 
-print("all env variables"+str(os.environ))
-print("telegram token: "+str(CONFIG['telegram_token']))
-print("google token: "+str(google_credentials['installed']))
+total, used, free = shutil.disk_usage("/")
+print("Total: %d GB" % (total // (2**30)))
+print("Used: %d GB" % (used // (2**30)))
+print("Free: %d GB" % (free // (2**30)))
+
 # Create all necessary folders
 for folder in [ 'videos_folder', 'images_folder', 'output_folder']:
     os.makedirs(CONFIG[folder], exist_ok=True)
@@ -300,10 +303,14 @@ class VideoOverlayGenerator:
         
         # Write final video
         print("\nCreating video...")
-        print("\nOutput path"+str(output_path))
-        final_video.write_videofile(output_path, 
+        print("\nOutput path: "+str(output_path))
+
+        try:
+            final_video.write_videofile(output_path, 
                                 codec='libx264',
                                 audio_codec='aac')
+        except Exception as e:
+            print(f"Error writing video: {e}")
         
         # Close clips to free resources
         print("\nStream about to close")
@@ -536,7 +543,7 @@ def task():
     
     process_new_media()
 
-schedule.every(30).seconds.do(task)
+schedule.every(60).seconds.do(task)
 
 # %% [markdown]
 # ## Run the Bot
