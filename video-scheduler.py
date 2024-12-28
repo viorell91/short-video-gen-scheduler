@@ -315,6 +315,7 @@ class VideoOverlayGenerator:
 def get_telegram_updates():
     """Get updates from Telegram bot"""
     url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/getUpdates"
+    print("telegram getUpdates: "+url)
     params = {
         'offset': CONFIG['last_update_id'] + 1,
         'timeout': 30
@@ -322,6 +323,7 @@ def get_telegram_updates():
     
     try:
         response = requests.get(url, params=params)
+        print("telegram updates json: "+str(response.json()))
         return response.json()
     except Exception as e:
         print(f"Error getting updates: {e}")
@@ -347,7 +349,7 @@ def download_file(file_id, is_video=False):
         # Determine the appropriate folder based on file type
         target_folder = CONFIG['videos_folder'] if is_video else CONFIG['images_folder']
         filepath = os.path.join(target_folder, filename)
-        
+        print("downloaded image to"+str(filepath))
         # Save file
         with open(filepath, 'wb') as f:
             f.write(response.content)
