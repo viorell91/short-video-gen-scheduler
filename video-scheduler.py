@@ -71,7 +71,8 @@ encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
 with open("client_secrets.json", "w") as f:
     json.dump(google_credentials, f)
 
-
+print("telegram token: "+CONFIG['telegram_token'])
+print("google token: "+google_credentials['installed'])
 # Create all necessary folders
 for folder in [ 'videos_folder', 'images_folder', 'output_folder']:
     os.makedirs(CONFIG[folder], exist_ok=True)
