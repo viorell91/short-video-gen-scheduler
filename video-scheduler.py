@@ -102,109 +102,17 @@ validate_config()
 
 def authenticate_youtube():
     """Authenticate using a saved refresh token and return API client"""
-    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     api_name = "youtube"
     api_version = "v3"
-    print("entered method authenticate_youtube")
-    if refresh_token is not None:
-        print("refresh_token loaded successfully!")
-    else:
-        print("Failed to load refresh_token.")
-    if client_id is not None:
-        print("client_id loaded successfully!")
-    else:
-        print("Failed to load client_id.")
-    if client_secret is not None:
-        print("client_secret loaded successfully!")
-    else:
-        print("Failed to load client_secret.")
 
     credentials = google.oauth2.credentials.Credentials(
         None,  # No access token initially
-        refresh_token=refresh_token,
-        client_id=client_id,
-        client_secret=client_secret,
+        refresh_token=os.getenv("GOOGLE_REFRESH_TOKEN"),
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
         token_uri="https://oauth2.googleapis.com/token"
     )
 
-    try:
-        # Build the YouTube API service
-        youtube = googleapiclient.discovery.build(
-            api_name, 
-            api_version, 
-            credentials=credentials
-        )
-        message = "✅ Authentication successful!"
-        print(message)
-        send_message(CONFIG['chat_id'], message)
-        return youtube
-    
-    except Exception as e:
-        message = f"❌ Service build failed: {str(e)}"
-        print(message)
-        send_message(CONFIG['chat_id'], message)
-        return None
-
-# %%
-def authenticate_youtube2():
-    """Handle YouTube API authentication and return API client"""
-    # Configuration for the API
-    api_name = "youtube"
-    api_version = "v3"
-    scopes = [
-        "https://www.googleapis.com/auth/youtube.upload",
-        "https://www.googleapis.com/auth/youtube",
-        "https://www.googleapis.com/auth/youtube.force-ssl"
-    ]
-    
-    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
-
-    # Path to store credentials
-    token_file = 'token.json'
-
-    credentials = None
-    print("encoded_token"+str(encoded_token))
-    # Check if we have stored credentials
-    if os.path.exists(token_file):
-        print("token_file found")
-        try:
-            credentials = google.oauth2.credentials.Credentials.from_authorized_user_file(
-                token_file, scopes)
-        except Exception as e:
-            print(f"Error loading stored credentials: {e}")
-    elif encoded_token:
-        print("encoded_token found")
-        try:
-            token_data = json.loads(encoded_token)
-            credentials = google.oauth2.credentials.Credentials.from_authorized_user_file(
-                token_data, scopes)
-            print("encoded_token"+str(token_data))
-        except Exception as e:
-            print(f"Error loading credentials from environment variable: {e}")
-    
-    # If there are no valid credentials available, authenticate using the flow
-    if not credentials or not credentials.valid:
-        try:
-            if credentials and credentials.expired and credentials.refresh_token:
-                credentials.refresh(google.auth.transport.requests.Request())
-            else:
-                flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-                    CONFIG['client_secrets_file'], 
-                    scopes
-                )
-                credentials = flow.run_local_server(port=8080)
-            
-            # Save the credentials for future use
-            with open(token_file, 'w') as token:
-                token.write(credentials.to_json())
-                print("✅ Credentials saved for future use")
-        
-        except Exception as e:
-            print(f"❌ Authentication failed: {str(e)}")
-            return None
-    
     try:
         # Build the YouTube API service
         youtube = googleapiclient.discovery.build(
@@ -353,8 +261,6 @@ class VideoOverlayGenerator:
         
         # Write final video
         print("\nCreating video...")
-        print("\nOutput path: "+str(output_path))
-
         try:
             final_video.write_videofile(output_path, 
                                 codec='libx264',
@@ -363,10 +269,8 @@ class VideoOverlayGenerator:
             print(f"Error writing video: {e}")
         
         # Close clips to free resources
-        print("\nStream about to close")
         video.close()
         final_video.close()
-        print("\nStream closed")
         
         return output_path
 
@@ -377,7 +281,6 @@ class VideoOverlayGenerator:
 def get_telegram_updates():
     """Get updates from Telegram bot"""
     url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/getUpdates"
-    print("telegram getUpdates: "+url)
     params = {
         'offset': CONFIG['last_update_id'] + 1,
         'timeout': 30
@@ -385,7 +288,6 @@ def get_telegram_updates():
     
     try:
         response = requests.get(url, params=params)
-        print("telegram updates json: "+str(response.json()))
         return response.json()
     except Exception as e:
         print(f"Error getting updates: {e}")
@@ -475,6 +377,11 @@ def upload_youtube_short(youtube, video_file, title, description="", tags=None):
         message = f"🎉 Upload Successful! Video URL: https://www.youtube.com/watch?v={video_id}"
         print(message)
         send_message(CONFIG['chat_id'], message)
+
+        # Delete the video after successful upload
+        if CONFIG['video_file'] and os.path.exists(CONFIG['video_file']):
+            os.remove(CONFIG['video_file'])
+            print(f"Deleted generate video file: {CONFIG['video_file']}")
         
         # Update video with vertical metadata for Shorts
         youtube.videos().update(
@@ -487,9 +394,7 @@ def upload_youtube_short(youtube, video_file, title, description="", tags=None):
                 }
             }
         ).execute()
-        
-        return video_id
-    
+
     except googleapiclient.errors.HttpError as e:
         error_message = f"❌ An HTTP error occurred: {e.resp.status} - {e.content}"
         print(error_message)
@@ -573,7 +478,7 @@ def process_new_media():
             if validate_config():
                 youtube = authenticate_youtube()
                 if youtube:
-                    video_id = upload_youtube_short(
+                    upload_youtube_short(
                         youtube,
                         overlay_path,  # Pass the generated video path
                         CONFIG['video_title'],
