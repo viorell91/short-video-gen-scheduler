@@ -50,7 +50,7 @@ CONFIG = {
     'video_title': 'Meme of the day #shorts #memes #funny',  # Update this
     'video_description': '',  # Update this
     'video_tags': ['#memes', '#funny'],  # Update these tags
-    'privacy_status': 'public'
+    'privacy_status': 'private'
 }
 
 # Read Google credentials from environment variables
@@ -67,6 +67,11 @@ google_credentials = {
 }
 
 encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
+
+if encoded_token is not None:
+    print("Encoded token loaded successfully!")
+else:
+    print("Failed to load encoded token.")
 
 # Write credentials to a temporary file if needed
 with open("client_secrets.json", "w") as f:
@@ -102,8 +107,42 @@ validate_config()
 # %% [markdown]
 # ## YouTube API Authentication
 
-# %%
 def authenticate_youtube():
+    """Authenticate using a saved refresh token and return API client"""
+    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    api_name = "youtube"
+    api_version = "v3"
+    
+    credentials = google.oauth2.credentials.Credentials(
+        None,  # No access token initially
+        refresh_token=refresh_token,
+        client_id=client_id,
+        client_secret=client_secret,
+        token_uri="https://oauth2.googleapis.com/token"
+    )
+
+    try:
+        # Build the YouTube API service
+        youtube = googleapiclient.discovery.build(
+            api_name, 
+            api_version, 
+            credentials=credentials
+        )
+        message = "✅ Authentication successful!"
+        print(message)
+        send_message(CONFIG['chat_id'], message)
+        return youtube
+    
+    except Exception as e:
+        message = f"❌ Service build failed: {str(e)}"
+        print(message)
+        send_message(CONFIG['chat_id'], message)
+        return None
+
+# %%
+def authenticate_youtube2():
     """Handle YouTube API authentication and return API client"""
     # Configuration for the API
     api_name = "youtube"
@@ -114,23 +153,28 @@ def authenticate_youtube():
         "https://www.googleapis.com/auth/youtube.force-ssl"
     ]
     
+    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+
     # Path to store credentials
     token_file = 'token.json'
 
     credentials = None
-    
+    print("encoded_token"+str(encoded_token))
     # Check if we have stored credentials
     if os.path.exists(token_file):
+        print("token_file found")
         try:
             credentials = google.oauth2.credentials.Credentials.from_authorized_user_file(
                 token_file, scopes)
         except Exception as e:
             print(f"Error loading stored credentials: {e}")
     elif encoded_token:
+        print("encoded_token found")
         try:
             token_data = json.loads(encoded_token)
             credentials = google.oauth2.credentials.Credentials.from_authorized_user_file(
                 token_data, scopes)
+            print("encoded_token"+str(token_data))
         except Exception as e:
             print(f"Error loading credentials from environment variable: {e}")
     
@@ -543,7 +587,7 @@ def task():
     
     process_new_media()
 
-schedule.every(60).seconds.do(task)
+schedule.every(30).seconds.do(task)
 
 # %% [markdown]
 # ## Run the Bot
