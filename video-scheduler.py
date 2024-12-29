@@ -66,13 +66,6 @@ google_credentials = {
     }
 }
 
-encoded_token = os.getenv("GOOGLE_REFRESHED_TOKEN")
-
-if encoded_token is not None:
-    print("Encoded token loaded successfully!")
-else:
-    print("Failed to load encoded token.")
-
 # Write credentials to a temporary file if needed
 with open("client_secrets.json", "w") as f:
     json.dump(google_credentials, f)
@@ -114,7 +107,7 @@ def authenticate_youtube():
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     api_name = "youtube"
     api_version = "v3"
-    
+    print("entered method authenticate_youtube")
     if refresh_token is not None:
         print("refresh_token loaded successfully!")
     else:
