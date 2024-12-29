@@ -115,6 +115,19 @@ def authenticate_youtube():
     api_name = "youtube"
     api_version = "v3"
     
+    if refresh_token is not None:
+        print("refresh_token loaded successfully!")
+    else:
+        print("Failed to load refresh_token.")
+    if client_id is not None:
+        print("client_id loaded successfully!")
+    else:
+        print("Failed to load client_id.")
+    if client_secret is not None:
+        print("client_secret loaded successfully!")
+    else:
+        print("Failed to load client_secret.")
+
     credentials = google.oauth2.credentials.Credentials(
         None,  # No access token initially
         refresh_token=refresh_token,
