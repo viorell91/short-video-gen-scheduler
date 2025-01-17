@@ -28,12 +28,15 @@ from googleapiclient.http import MediaFileUpload
 import matplotlib.pyplot as plt
 import schedule
 from dotenv import load_dotenv
+import logging
 import shutil
 
 # %% [markdown]
 # ## Configuration
 
 # %%
+
+logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 CONFIG = {
@@ -45,12 +48,11 @@ CONFIG = {
     'output_folder': '/tmp',
     'last_update_id': 0,
 
-    'client_secrets_file': 'client_secrets.json',  # Update this path
-    'video_file': 'data/output/overlay_Unbenannt.mp4',  # Update this path
-    'video_title': 'Meme of the day #shorts #memes #funny',  # Update this
-    'video_description': '',  # Update this
-    'video_tags': ['#memes', '#funny'],  # Update these tags
-    'privacy_status': 'private'
+    'client_secrets_file': 'client_secrets.json', 
+    'video_file': 'data/output/overlay_Unbenannt.mp4', 
+    'video_description': '', 
+    'video_tags': ['#memes', '#funny'],
+    'privacy_status': 'public'
 }
 
 # Read Google credentials from environment variables
@@ -105,16 +107,25 @@ def authenticate_youtube():
     api_name = "youtube"
     api_version = "v3"
 
-    credentials = google.oauth2.credentials.Credentials(
-        None,  # No access token initially
-        refresh_token=os.getenv("GOOGLE_REFRESH_TOKEN"),
-        client_id=os.getenv("GOOGLE_CLIENT_ID"),
-        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-        token_uri="https://oauth2.googleapis.com/token"
-    )
-
     try:
-        # Build the YouTube API service
+        credentials = google.oauth2.credentials.Credentials(
+            None,  # No access token initially
+            refresh_token=os.getenv("GOOGLE_REFRESH_TOKEN"),
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            token_uri="https://oauth2.googleapis.com/token"
+        )
+
+        # Try to refresh the token
+        request = google.auth.transport.requests.Request()
+        credentials.refresh(request)
+
+        # If refresh succeeded, save the new refresh token
+        if credentials.refresh_token:
+            # Save the new refresh token to environment variable or secure storage
+            os.environ["GOOGLE_REFRESH_TOKEN"] = credentials.refresh_token
+            print("✅ Token refreshed successfully!")
+
         youtube = googleapiclient.discovery.build(
             api_name, 
             api_version, 
@@ -125,12 +136,70 @@ def authenticate_youtube():
         send_message(CONFIG['chat_id'], message)
         return youtube
     
+    except google.auth.exceptions.RefreshError as e:
+        message = f"❌ Token refresh failed: {str(e)}"
+        print(message)
+        send_message(CONFIG['chat_id'], message)
+        # Here you could implement logic to get a new token
+        get_new_token()
+        return None
+    
     except Exception as e:
-        message = f"❌ Service build failed: {str(e)}"
+        message = f"❌ Authentication failed: {str(e)}"
         print(message)
         send_message(CONFIG['chat_id'], message)
         return None
 
+def get_new_token():
+    """Get a new token when refresh fails"""
+    flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+        CONFIG['client_secrets_file'],
+        scopes = [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube",
+        "https://www.googleapis.com/auth/youtube.force-ssl"
+        ]
+    )
+    
+    # This will require manual intervention - opening a browser
+    credentials = flow.run_local_server(port=8080)
+    
+    # Save the new refresh token
+    if credentials.refresh_token:
+        os.environ["GOOGLE_REFRESH_TOKEN"] = credentials.refresh_token
+        print("✅ New refresh token obtained!")
+        
+        # You might want to save this to a secure location
+        # For example, update your .env file
+        with open('.env', 'r') as file:
+            lines = file.readlines()
+        
+        with open('.env', 'w') as file:
+            for line in lines:
+                if line.startswith('GOOGLE_REFRESH_TOKEN='):
+                    file.write(f'GOOGLE_REFRESH_TOKEN={credentials.refresh_token}\n')
+                else:
+                    file.write(line)
+
+def get_random_title():
+    """Read titles from a file and return a random one"""
+    try:
+        with open('generic_video_titles.txt', 'r') as file:
+            # Read all lines and remove empty lines
+            titles = [line.strip() for line in file.readlines() if line.strip()]
+            
+        if not titles:
+            return "Meme of the day"  # Fallback title if file is empty
+            
+        # Select random title and add hashtags
+        random_title = random.choice(titles)
+        return f"{random_title} #shorts #memes #funny"
+    except FileNotFoundError:
+        print("Titles file not found, using default title")
+        return "Meme of the day #shorts #memes #funny"
+    except Exception as e:
+        print(f"Error reading titles: {e}")
+        return "Meme of the day #shorts #memes #funny"
 
 # %% [markdown]
 # ## Preview Functions
@@ -243,10 +312,10 @@ class VideoOverlayGenerator:
         # Convert PIL image to ImageClip
         image_clip = ImageClip(np.array(resized_img))
         
-        # Position image at the bottom center of video with 5% margin
-        bottom_margin = int(video_height * 0.1)  # 5% margin from bottom
+        # Position image at the top center of video with 10% margin from top
+        top_margin = int(video_height * 0.1)  # 10% margin from top
         x_pos = (video_width - resized_img.width) // 2
-        y_pos = video_height - resized_img.height - bottom_margin
+        y_pos = top_margin  # Simply place it at the top margin position
         
         # Set duration of image to match video
         image_clip = image_clip.set_duration(video.duration)
@@ -288,6 +357,7 @@ def get_telegram_updates():
     
     try:
         response = requests.get(url, params=params)
+        print(response.json())
         return response.json()
     except Exception as e:
         print(f"Error getting updates: {e}")
@@ -327,7 +397,7 @@ def download_file(file_id, is_video=False):
 # ## Video Upload Function
 
 # %%
-def upload_youtube_short(youtube, video_file, title, description="", tags=None):
+def upload_youtube_short(youtube, video_file, title, description="", tags=None, sender_chat_id=None):
     """Upload a video as a YouTube Short"""
     if not youtube:
         print("❌ YouTube API client not initialized")
@@ -366,7 +436,8 @@ def upload_youtube_short(youtube, video_file, title, description="", tags=None):
         response = None
         start_upload_message = "📤 Starting upload..."
         print(start_upload_message)
-        send_message(CONFIG['chat_id'], start_upload_message)
+        if sender_chat_id:  # Only send to the original sender
+            send_message(sender_chat_id, start_upload_message)
         while response is None:
             status, response = insert_request.next_chunk()
             if status:
@@ -376,7 +447,8 @@ def upload_youtube_short(youtube, video_file, title, description="", tags=None):
         video_id = response['id']
         message = f"🎉 Upload Successful! Video URL: https://www.youtube.com/watch?v={video_id}"
         print(message)
-        send_message(CONFIG['chat_id'], message)
+        if sender_chat_id:  # Only send to the original sender
+            send_message(sender_chat_id, message)
 
         # Delete the video after successful upload
         if CONFIG['video_file'] and os.path.exists(CONFIG['video_file']):
@@ -447,6 +519,13 @@ def process_new_media():
     last_update = updates['result'][-1]
     CONFIG['last_update_id'] = last_update['update_id']
 
+    # Get the chat ID of the user who sent the message
+    if 'message' not in last_update or 'chat' not in last_update['message']:
+        print("No valid message in update")
+        return
+        
+    sender_chat_id = last_update['message']['chat']['id']
+
     # Check if update contains a message with photo or video
     message = last_update.get('message', {})
     downloaded_path = None
@@ -478,12 +557,14 @@ def process_new_media():
             if validate_config():
                 youtube = authenticate_youtube()
                 if youtube:
+                    # Pass the sender's chat_id to upload_youtube_short
                     upload_youtube_short(
                         youtube,
-                        overlay_path,  # Pass the generated video path
-                        CONFIG['video_title'],
+                        overlay_path,
+                        get_random_title(),
                         CONFIG['video_description'],
-                        CONFIG['video_tags']
+                        CONFIG['video_tags'],
+                        sender_chat_id  # Add this parameter
                     )
 
         except Exception as e:
@@ -498,7 +579,7 @@ def task():
     
     process_new_media()
 
-schedule.every(30).seconds.do(task)
+schedule.every(1).minutes.do(task)
 
 # %% [markdown]
 # ## Run the Bot
