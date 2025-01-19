@@ -1,0 +1,28 @@
+services:
+  short-gen-app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1.0"
+    env_file:
+      - .env
+    restart: always
+    volumes:
+      - tmp_data:/tmp
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://localhost:12201" # Logstash or GELF listener
+        labels: app, env
+
+volumes:
+  tmp_data:
+    driver: local
+    driver_opts:
+      o: "size=50g"
+      device: tmpfs
+      type: tmpfs
